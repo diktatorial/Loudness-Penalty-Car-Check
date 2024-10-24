@@ -135,7 +135,7 @@ class LUFSCalculator {
   }
 }
 
-export async function analyzeAudio(file: File): Promise<{ lufs: number; penalties: Record<string, number> }> {
+export async function analyzeAudio(file: File): Promise<{ lufs: number; penalties: Record<string, number>; audioBuffer: AudioBuffer }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async (e: ProgressEvent<FileReader>) => {
@@ -146,7 +146,9 @@ export async function analyzeAudio(file: File): Promise<{ lufs: number; penaltie
         const lufsCalculator = new LUFSCalculator();
         const lufs = await lufsCalculator.calculateIntegratedLUFS(audioBuffer);
         const penalties = lufsCalculator.calculateLUFSPenalty(lufs);
-        resolve({ lufs, penalties });
+        
+        // Return the calculated LUFS, penalties, and the decoded audioBuffer
+        resolve({ lufs, penalties, audioBuffer });
       } catch (error) {
         reject(error);
       }
@@ -155,3 +157,4 @@ export async function analyzeAudio(file: File): Promise<{ lufs: number; penaltie
     reader.readAsArrayBuffer(file);
   });
 }
+

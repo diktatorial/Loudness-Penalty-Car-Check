@@ -1,4 +1,3 @@
-// Component.tsx
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import {
@@ -10,29 +9,156 @@ import {
 } from "@/components/ui/card";
 import { Volume2, Play, Pause } from "lucide-react";
 import FileUploader from "./FileUploader";
-import Analyzer from "./Analyzer";
 import PlaybackControls from "./PlaybackControls";
 import DeviceSelector from "./DeviceSelector";
+import { analyzeAudio } from './analyze';
 
 // Define a type for the device keys
 type DeviceType = keyof typeof gainValues;
 
-// Equalizer settings for specific devices
+// Define the frequency bands for the equalizer
+const frequencyBands = [
+  { name: "31Hz", frequency: 31 },
+  { name: "62Hz", frequency: 62 },
+  { name: "125Hz", frequency: 125 },
+  { name: "250Hz", frequency: 250 },
+  { name: "500Hz", frequency: 500 },
+  { name: "1kHz", frequency: 1000 },
+  { name: "2kHz", frequency: 2000 },
+  { name: "4kHz", frequency: 4000 },
+  { name: "8kHz", frequency: 8000 },
+  { name: "16kHz", frequency: 16000 },
+];
+
+// Equalizer settings for specific devices (10-band)
 const gainValues = {
-  car: { bass: 6, mid: 0, treble: -3 }, // Car sound system
-  iphone: { bass: 2, mid: 1, treble: 3 }, // iPhone
-  macbook: { bass: -1, mid: 2, treble: 4 }, // MacBook
-  headphones: { bass: 3, mid: 2, treble: 3 }, // Standard headphones
-  tv: { bass: 4, mid: -1, treble: 2 }, // TV speakers
-  homeTheater: { bass: 5, mid: 0, treble: 4 }, // Home theater system
-  bluetoothSpeaker: { bass: 4, mid: 1, treble: 2 }, // Bluetooth speaker
-  studioMonitors: { bass: 0, mid: 0, treble: 0 }, // Flat response, studio monitors
-  gamingHeadset: { bass: 5, mid: 1, treble: 2 }, // Gaming headset
-  tablet: { bass: 1, mid: 2, treble: 3 }, // Tablet speakers
+  car: {
+    "31Hz": 5,
+    "62Hz": 5,
+    "125Hz": 4,
+    "250Hz": 3,
+    "500Hz": 2,
+    "1kHz": 0,
+    "2kHz": -1,
+    "4kHz": -2,
+    "8kHz": -3,
+    "16kHz": -4,
+  }, // Car sound system
+  iphone: {
+    "31Hz": 2,
+    "62Hz": 2,
+    "125Hz": 1,
+    "250Hz": 1,
+    "500Hz": 0,
+    "1kHz": 0,
+    "2kHz": 1,
+    "4kHz": 2,
+    "8kHz": 3,
+    "16kHz": 4,
+  }, // iPhone
+  macbook: {
+    "31Hz": -1,
+    "62Hz": -1,
+    "125Hz": 0,
+    "250Hz": 1,
+    "500Hz": 2,
+    "1kHz": 2,
+    "2kHz": 2,
+    "4kHz": 3,
+    "8kHz": 4,
+    "16kHz": 4,
+  }, // MacBook
+  headphones: {
+    "31Hz": 3,
+    "62Hz": 3,
+    "125Hz": 2,
+    "250Hz": 2,
+    "500Hz": 1,
+    "1kHz": 1,
+    "2kHz": 2,
+    "4kHz": 2,
+    "8kHz": 3,
+    "16kHz": 3,
+  }, // Standard headphones
+  tv: {
+    "31Hz": 4,
+    "62Hz": 4,
+    "125Hz": 3,
+    "250Hz": 2,
+    "500Hz": 1,
+    "1kHz": 0,
+    "2kHz": -1,
+    "4kHz": -1,
+    "8kHz": 0,
+    "16kHz": 1,
+  }, // TV speakers
+  homeTheater: {
+    "31Hz": 5,
+    "62Hz": 5,
+    "125Hz": 4,
+    "250Hz": 3,
+    "500Hz": 2,
+    "1kHz": 2,
+    "2kHz": 1,
+    "4kHz": 1,
+    "8kHz": 2,
+    "16kHz": 3,
+  }, // Home theater system
+  bluetoothSpeaker: {
+    "31Hz": 4,
+    "62Hz": 4,
+    "125Hz": 3,
+    "250Hz": 3,
+    "500Hz": 2,
+    "1kHz": 1,
+    "2kHz": 1,
+    "4kHz": 2,
+    "8kHz": 2,
+    "16kHz": 2,
+  }, // Bluetooth speaker
+  studioMonitors: {
+    "31Hz": 0,
+    "62Hz": 0,
+    "125Hz": 0,
+    "250Hz": 0,
+    "500Hz": 0,
+    "1kHz": 0,
+    "2kHz": 0,
+    "4kHz": 0,
+    "8kHz": 0,
+    "16kHz": 0,
+  }, // Flat response, studio monitors
+  gamingHeadset: {
+    "31Hz": 5,
+    "62Hz": 5,
+    "125Hz": 4,
+    "250Hz": 3,
+    "500Hz": 2,
+    "1kHz": 1,
+    "2kHz": 1,
+    "4kHz": 2,
+    "8kHz": 2,
+    "16kHz": 2,
+  }, // Gaming headset
+  tablet: {
+    "31Hz": 1,
+    "62Hz": 1,
+    "125Hz": 1,
+    "250Hz": 2,
+    "500Hz": 2,
+    "1kHz": 2,
+    "2kHz": 3,
+    "4kHz": 3,
+    "8kHz": 3,
+    "16kHz": 3,
+  }, // Tablet speakers
 } as const;
 
 // Extend AudioBufferSourceNode to include startTime
 type AudioBufferSourceNodeWithStartTime = AudioBufferSourceNode & { startTime?: number };
+
+// Define types for the equalizer
+type EQSettings = Record<string, number>;
 
 export default function Component() {
   // State Variables
@@ -54,9 +180,7 @@ export default function Component() {
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const platformGainNodeRef = useRef<GainNode | null>(null);
   const masterGainNodeRef = useRef<GainNode | null>(null);
-  const bassFilterRef = useRef<BiquadFilterNode | null>(null);
-  const midFilterRef = useRef<BiquadFilterNode | null>(null);
-  const trebleFilterRef = useRef<BiquadFilterNode | null>(null);
+  const eqFiltersRef = useRef<BiquadFilterNode[]>([]); // Array for multiple EQ filters
   const animationFrameRef = useRef<number | null>(null);
   const pauseTimeRef = useRef<number>(0); // Time when paused
 
@@ -64,8 +188,16 @@ export default function Component() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // State for manual EQ settings
+  const [manualEQ, setManualEQ] = useState<EQSettings>(
+    frequencyBands.reduce((acc, band) => {
+      acc[band.name] = 0;
+      return acc;
+    }, {} as EQSettings)
+  );
+
   // Handle File Selection
-  const handleFileSelect = (selectedFile: File) => {
+  const handleFileSelect = async (selectedFile: File) => {
     setFile(selectedFile);
     setAudioUrl(URL.createObjectURL(selectedFile));
     setResults(null);
@@ -75,85 +207,77 @@ export default function Component() {
     setCurrentTime(0);
     setDuration(0);
     pauseTimeRef.current = 0;
-    // Reset audio buffers
-    audioBufferRef.current = null;
-  };
+    audioBufferRef.current = null; // Reset audio buffer
 
-  // Handle Analysis Results
-  const handleAnalyze = async (analysisResults: {
-    lufs: number;
-    penalties: Record<string, number>;
-  }) => {
-    setResults(analysisResults);
-    // Load and decode the audio here to ensure it's ready before playback
-    if (audioUrl) {
-      setIsLoading(true);
-      await setupAudio();
+    setIsLoading(true);
+
+    try {
+      // Run audio analysis and get both LUFS and audio buffer (already decoded)
+      const { lufs, penalties, audioBuffer } = await analyzeAudio(selectedFile);
+      setResults({ lufs, penalties });
+
+      // Initialize AudioContext if not already
+      if (!audioContextRef.current) {
+        const audioContext = new AudioContext();
+        audioContextRef.current = audioContext;
+      }
+
+      // Use the decoded audioBuffer for playback
+      audioBufferRef.current = audioBuffer;
+      setDuration(audioBuffer.duration); // Set the duration based on the decoded audio
+
+      console.log("Audio analysis and setup completed");
+    } catch (error) {
+      console.error("Error during file analysis or audio setup:", error);
+      alert("An error occurred during analysis or audio setup. Please try a different file.");
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // Initialize Audio Context and Buffer
-  const setupAudio = async () => {
-    if (!window.AudioContext && !(window as any).webkitAudioContext) {
-      alert("Web Audio API is not supported in this browser.");
-      return false;
-    }
-
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-    }
-    const audioContext = audioContextRef.current;
-
-    if (!audioBufferRef.current && audioUrl) {
-      try {
-        const response = await fetch(audioUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        audioBufferRef.current = await audioContext.decodeAudioData(arrayBuffer);
-        setDuration(audioBufferRef.current.duration);
-      } catch (error) {
-        console.error("Error decoding audio data:", error);
-        alert("Failed to decode audio data.");
-      }
-    }
-    return true;
-  };
-
   // Apply Equalizer Settings
-  const applyEqualizer = (settings: { bass: number; mid: number; treble: number }) => {
+  const applyEqualizer = (settings: EQSettings) => {
     const audioContext = audioContextRef.current;
     if (!audioContext) return;
 
-    // Initialize filters if they don't exist
-    if (!bassFilterRef.current) {
-      bassFilterRef.current = audioContext.createBiquadFilter();
-      bassFilterRef.current.type = "lowshelf";
-      bassFilterRef.current.frequency.setValueAtTime(100, audioContext.currentTime);
-      bassFilterRef.current.gain.setValueAtTime(settings.bass, audioContext.currentTime);
-    } else {
-      bassFilterRef.current.gain.setValueAtTime(settings.bass, audioContext.currentTime);
+    // Initialize or update each filter
+    frequencyBands.forEach((band, index) => {
+      let filter = eqFiltersRef.current[index];
+      if (!filter) {
+        filter = audioContext.createBiquadFilter();
+        filter.type = "peaking";
+        filter.frequency.setValueAtTime(band.frequency, audioContext.currentTime);
+        filter.Q.setValueAtTime(1, audioContext.currentTime); // Quality factor
+        filter.gain.setValueAtTime(settings[band.name], audioContext.currentTime);
+        eqFiltersRef.current[index] = filter;
+      } else {
+        filter.gain.setValueAtTime(settings[band.name], audioContext.currentTime);
+      }
+    });
+
+    // Remove any extra filters if frequencyBands array shrinks
+    if (eqFiltersRef.current.length > frequencyBands.length) {
+      eqFiltersRef.current.slice(frequencyBands.length).forEach((filter) => {
+        filter.disconnect();
+      });
+      eqFiltersRef.current = eqFiltersRef.current.slice(0, frequencyBands.length);
     }
 
-    if (!midFilterRef.current) {
-      midFilterRef.current = audioContext.createBiquadFilter();
-      midFilterRef.current.type = "peaking";
-      midFilterRef.current.frequency.setValueAtTime(1000, audioContext.currentTime);
-      midFilterRef.current.gain.setValueAtTime(settings.mid, audioContext.currentTime);
-    } else {
-      midFilterRef.current.gain.setValueAtTime(settings.mid, audioContext.currentTime);
-    }
+    // Connect filters in series if not already connected
+    if (eqFiltersRef.current.length > 0) {
+      // Disconnect existing connections
+      eqFiltersRef.current.forEach((filter) => filter.disconnect());
 
-    if (!trebleFilterRef.current) {
-      trebleFilterRef.current = audioContext.createBiquadFilter();
-      trebleFilterRef.current.type = "highshelf";
-      trebleFilterRef.current.frequency.setValueAtTime(3000, audioContext.currentTime);
-      trebleFilterRef.current.gain.setValueAtTime(settings.treble, audioContext.currentTime);
-    } else {
-      trebleFilterRef.current.gain.setValueAtTime(settings.treble, audioContext.currentTime);
-    }
+      // Connect in series: platformGain -> EQ1 -> EQ2 -> ... -> masterGain
+      platformGainNodeRef.current?.disconnect();
+      platformGainNodeRef.current?.connect(eqFiltersRef.current[0]);
 
-    // EQ nodes are connected in setupGainNodes; no need to reconnect here
+      for (let i = 0; i < eqFiltersRef.current.length - 1; i++) {
+        eqFiltersRef.current[i].connect(eqFiltersRef.current[i + 1]);
+      }
+
+      eqFiltersRef.current[eqFiltersRef.current.length - 1].connect(masterGainNodeRef.current!);
+    }
   };
 
   // Setup Gain Nodes and Connect the Audio Graph
@@ -173,36 +297,28 @@ export default function Component() {
     }
     masterGainNodeRef.current.gain.setValueAtTime(volume, audioContext.currentTime);
 
-    // EQ Nodes
-    if (!bassFilterRef.current) {
-      bassFilterRef.current = audioContext.createBiquadFilter();
-      bassFilterRef.current.type = "lowshelf";
-      bassFilterRef.current.frequency.setValueAtTime(100, audioContext.currentTime);
+    // Initialize EQ Filters if they haven't been initialized yet
+    if (eqFiltersRef.current.length === 0) {
+      frequencyBands.forEach((band) => {
+        const filter = audioContext.createBiquadFilter();
+        filter.type = "peaking";
+        filter.frequency.setValueAtTime(band.frequency, audioContext.currentTime);
+        filter.Q.setValueAtTime(1, audioContext.currentTime);
+        filter.gain.setValueAtTime(manualEQ[band.name], audioContext.currentTime);
+        eqFiltersRef.current.push(filter);
+      });
     }
 
-    if (!midFilterRef.current) {
-      midFilterRef.current = audioContext.createBiquadFilter();
-      midFilterRef.current.type = "peaking";
-      midFilterRef.current.frequency.setValueAtTime(1000, audioContext.currentTime);
-    }
-
-    if (!trebleFilterRef.current) {
-      trebleFilterRef.current = audioContext.createBiquadFilter();
-      trebleFilterRef.current.type = "highshelf";
-      trebleFilterRef.current.frequency.setValueAtTime(3000, audioContext.currentTime);
-    }
-
-    // Connect nodes: platformGain -> bassFilter -> midFilter -> trebleFilter -> masterGain -> destination
+    // Connect nodes: platformGain -> EQ1 -> EQ2 -> ... -> masterGain -> destination
     platformGainNodeRef.current.disconnect();
-    bassFilterRef.current.disconnect();
-    midFilterRef.current.disconnect();
-    trebleFilterRef.current.disconnect();
+    eqFiltersRef.current.forEach((filter) => filter.disconnect());
     masterGainNodeRef.current.disconnect();
 
-    platformGainNodeRef.current.connect(bassFilterRef.current);
-    bassFilterRef.current.connect(midFilterRef.current);
-    midFilterRef.current.connect(trebleFilterRef.current);
-    trebleFilterRef.current.connect(masterGainNodeRef.current);
+    platformGainNodeRef.current.connect(eqFiltersRef.current[0]);
+    for (let i = 0; i < eqFiltersRef.current.length - 1; i++) {
+      eqFiltersRef.current[i].connect(eqFiltersRef.current[i + 1]);
+    }
+    eqFiltersRef.current[eqFiltersRef.current.length - 1].connect(masterGainNodeRef.current);
     masterGainNodeRef.current.connect(audioContext.destination);
   };
 
@@ -219,13 +335,19 @@ export default function Component() {
   const playAudio = async (platform: string, device: DeviceType | null) => {
     // Ensure audio is loaded
     if (!audioBufferRef.current) {
-      alert("Audio is not loaded yet. Please analyze first.");
+      console.error("Audio is not loaded yet.");
+      alert("Please upload and analyze an audio file first.");
       return;
     }
 
     const audioContext = audioContextRef.current;
     const audioBuffer = audioBufferRef.current;
-    if (!audioContext || !audioBuffer) return;
+
+    if (!audioContext || !audioBuffer) {
+      console.error("AudioContext or AudioBuffer is missing.");
+      alert("Audio setup is incomplete. Please try uploading the file again.");
+      return;
+    }
 
     // Resume AudioContext if it's suspended (required for some browsers)
     if (audioContext.state === "suspended") {
@@ -233,11 +355,12 @@ export default function Component() {
         await audioContext.resume();
       } catch (error) {
         console.error("Error resuming AudioContext:", error);
+        alert("Failed to resume audio context.");
         return;
       }
     }
 
-    // If already playing, stop current audio
+    // Stop current audio if already playing
     if (isPlaying) {
       if (sourceNodeRef.current) {
         sourceNodeRef.current.stop();
@@ -246,15 +369,15 @@ export default function Component() {
       setIsPlaying(false);
     }
 
-    // Create a new source node
+    // Create a new source node for playback
     const sourceNode = audioContext.createBufferSource() as AudioBufferSourceNodeWithStartTime;
-    sourceNode.buffer = audioBuffer;
+    sourceNode.buffer = audioBuffer; // Use the loaded audio buffer
     sourceNodeRef.current = sourceNode;
 
-    // Setup gain nodes and connect audio graph
+    // Setup gain nodes and connect the audio graph
     setupGainNodes();
 
-    // Apply platform gain
+    // Apply platform gain based on loudness penalty
     const penalty = results?.penalties[platform] || 0;
     if (platformGainNodeRef.current) {
       platformGainNodeRef.current.gain.setValueAtTime(
@@ -263,52 +386,58 @@ export default function Component() {
       );
     }
 
-    // Apply equalizer settings
-    const deviceSettings = device
-      ? gainValues[device]
-      : { bass: 0, mid: 0, treble: 0 };
+    // Apply equalizer settings (either device-specific or manual)
+    let deviceSettings: EQSettings = {};
+    if (device) {
+      deviceSettings = gainValues[device];
+    } else {
+      deviceSettings = manualEQ; // Use manual EQ settings if no device is selected
+    }
     applyEqualizer(deviceSettings);
 
-    // Connect source -> platformGainNode
+    // Connect source node to the gain node and start playback
     sourceNode.connect(platformGainNodeRef.current!);
 
-    // Start playback from currentTime
-    sourceNode.start(0, currentTime);
-    sourceNode.startTime = audioContext.currentTime - currentTime;
+    // Start playback from the current time
+    sourceNode.start(0, currentTime); // Start from the paused or beginning position
+    sourceNode.startTime = audioContext.currentTime - currentTime; // Track time since start
+
+    // Update state for playback
     setIsPlaying(true);
     setCurrentPlatform(platform);
     setCurrentDevice(device);
   };
 
-  // Pause Audio
   const pauseAudio = () => {
     const audioContext = audioContextRef.current;
     const sourceNode = sourceNodeRef.current;
+
     if (audioContext && sourceNode) {
       sourceNode.stop();
       sourceNode.disconnect();
       sourceNodeRef.current = null;
-      setIsPlaying(false);
-      setCurrentPlatform(null);
-      setCurrentDevice(null);
 
-      // Update currentTime based on elapsed time
       const elapsed = audioContext.currentTime - (sourceNode.startTime || 0);
       pauseTimeRef.current = elapsed;
       setCurrentTime(elapsed);
     }
+
+    setIsPlaying(false);
+    setCurrentPlatform(null);
+    setCurrentDevice(null);
     cancelAnimationFrame(animationFrameRef.current!);
   };
 
-  // Stop Audio
   const stopAudio = () => {
     const audioContext = audioContextRef.current;
     const sourceNode = sourceNodeRef.current;
+
     if (sourceNode) {
       sourceNode.stop();
       sourceNode.disconnect();
       sourceNodeRef.current = null;
     }
+
     setIsPlaying(false);
     setCurrentPlatform(null);
     setCurrentDevice(null);
@@ -317,40 +446,69 @@ export default function Component() {
     cancelAnimationFrame(animationFrameRef.current!);
   };
 
-  // Handle Device Selection
-  const handleDeviceSelect = (device: DeviceType) => {
+  // **Updated Function: Synchronize Manual EQ with Selected Device**
+  const handleDeviceSelect = (device: DeviceType | null) => {
     setCurrentDevice(device);
-    if (isPlaying && currentPlatform) {
-      // Adjust equalizer settings without restarting playback
-      const deviceSettings = gainValues[device];
-      applyEqualizer(deviceSettings);
+    if (device) {
+      // Update manual EQ to match the selected device's EQ settings
+      setManualEQ(gainValues[device]);
+
+      if (isPlaying && currentPlatform) {
+        // Adjust equalizer settings based on device preset
+        const deviceSettings = gainValues[device];
+        applyEqualizer(deviceSettings);
+      }
+    } else {
+      // If 'None' is selected, reset manual EQ to default (all zeros)
+      setManualEQ(
+        frequencyBands.reduce((acc, band) => {
+          acc[band.name] = 0;
+          return acc;
+        }, {} as EQSettings)
+      );
+
+      if (isPlaying && currentPlatform) {
+        // Apply manual EQ settings (all zeros)
+        applyEqualizer(manualEQ);
+      }
     }
   };
 
-  // Handle Progress Bar Change (Seek)
   const handleSeek = (event: React.ChangeEvent<HTMLInputElement>) => {
     const seekTime = parseFloat(event.target.value);
     setCurrentTime(seekTime);
     if (isPlaying && currentPlatform) {
-      // Restart playback from new position
       stopAudio();
       playAudio(currentPlatform, currentDevice);
     }
   };
 
-  // Handle Volume Change
   const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(event.target.value);
     setVolume(newVolume);
-    if (masterGainNodeRef.current) {
+    if (masterGainNodeRef.current && audioContextRef.current) {
       masterGainNodeRef.current.gain.setValueAtTime(
         newVolume,
-        audioContextRef.current!.currentTime
+        audioContextRef.current.currentTime
       );
     }
   };
 
-  // Cleanup on Component Unmount
+  const handleEQChange = (band: string, gain: number) => {
+    setManualEQ((prev) => ({
+      ...prev,
+      [band]: gain,
+    }));
+
+    if (isPlaying && !currentDevice && currentPlatform) {
+      applyEqualizer({
+        ...manualEQ,
+        [band]: gain,
+      });
+    }
+  };
+
+  // Cleanup on component unmount
   useEffect(() => {
     return () => {
       stopAudio();
@@ -360,7 +518,7 @@ export default function Component() {
     };
   }, []);
 
-  // Handle Update Playback Time via useEffect
+  // Handle playback time updates
   useEffect(() => {
     if (isPlaying && audioContextRef.current && sourceNodeRef.current?.startTime !== undefined) {
       const updateTime = () => {
@@ -369,8 +527,7 @@ export default function Component() {
           isPlaying &&
           sourceNodeRef.current?.startTime !== undefined
         ) {
-          const elapsed =
-            audioContextRef.current.currentTime - (sourceNodeRef.current.startTime || 0);
+          const elapsed = audioContextRef.current.currentTime - (sourceNodeRef.current.startTime || 0);
           setCurrentTime(elapsed);
           if (elapsed >= duration) {
             stopAudio();
@@ -404,147 +561,171 @@ export default function Component() {
           <div className="space-y-6">
             {/* File Uploader */}
             <FileUploader onFileSelect={handleFileSelect} />
+          </div>
 
-            {/* Analyze Button */}
-            {file && <Analyzer file={file} onAnalyze={handleAnalyze} />}
+          {/* Display Selected File */}
+          {file && (
+            <div className="text-center text-muted-foreground">
+              Selected file: {file.name}
+            </div>
+          )}
 
-            {/* Display Selected File */}
-            {file && (
-              <div className="text-center text-muted-foreground">
-                Selected file: {file.name}
+          {/* Display Analysis Results */}
+          {results && (
+            <div className="mt-6 space-y-6">
+              {/* LUFS Value */}
+              <div className="flex items-center justify-center space-x-2 text-xl">
+                <Volume2 className="h-6 w-6" />
+                <span className="font-semibold">
+                  Integrated LUFS value: {results.lufs.toFixed(1)} dB
+                </span>
               </div>
-            )}
 
-            {/* Display Analysis Results */}
-            {results && (
-              <div className="mt-6 space-y-6">
-                {/* LUFS Value */}
-                <div className="flex items-center justify-center space-x-2 text-xl">
-                  <Volume2 className="h-6 w-6" />
-                  <span className="font-semibold">
-                    Integrated LUFS value: {results.lufs.toFixed(1)} dB
-                  </span>
+              {/* Loudness Penalties */}
+              <div className="space-y-4">
+                <h3 className="text-2xl font-semibold text-center">
+                  Loudness Penalties
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {Object.entries(results.penalties).map(([platform, penalty]) => (
+                    <button
+                      key={platform}
+                      className={`h-auto py-4 flex flex-col items-center justify-center gap-2 transition-transform duration-200 ease-in-out hover:scale-105 ${
+                        currentPlatform === platform
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-gray-300 text-gray-700"
+                      } rounded-md`}
+                      onClick={() => togglePlayPause(platform, currentDevice)}
+                      aria-pressed={currentPlatform === platform}
+                      disabled={isLoading} // Disable button while loading
+                    >
+                      <span className="text-lg font-semibold">{platform}</span>
+                      <span
+                        className={`text-sm ${
+                          penalty < 0 ? "text-red-500" : "text-green-500"
+                        }`}
+                      >
+                        {penalty > 0 ? "+" : ""}
+                        {penalty.toFixed(1)} dB
+                      </span>
+                      {isPlaying && currentPlatform === platform ? (
+                        <Pause
+                          className="h-6 w-6 mt-2"
+                          aria-label="Pause"
+                        />
+                      ) : (
+                        <Play
+                          className="h-6 w-6 mt-2"
+                          aria-label="Play"
+                        />
+                      )}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                {/* Loudness Penalties */}
+              {/* Playback Controls and Progress */}
+              {file && (
+                <div className="space-y-4">
+                  {/* Playback Controls */}
+                  <div className="flex items-center justify-center gap-4">
+                    <PlaybackControls
+                      isPlaying={isPlaying}
+                      onPlayPause={() => {
+                        if (isPlaying && currentPlatform) {
+                          pauseAudio();
+                        } else if (!isPlaying && currentPlatform) {
+                          playAudio(currentPlatform, currentDevice);
+                        }
+                      }}
+                      disabled={isLoading} // Disable controls while loading
+                    />
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="flex items-center justify-center space-x-2">
+                    <span>{formatTime(currentTime)}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max={duration}
+                      value={currentTime}
+                      onChange={handleSeek}
+                      className="w-full"
+                      aria-label="Seek"
+                      step="0.01"
+                    />
+                    <span>{formatTime(duration)}</span>
+                  </div>
+
+                  {/* Volume Control */}
+                  <div className="flex items-center justify-center space-x-2">
+                    <span>Volume</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.01"
+                      value={volume}
+                      onChange={handleVolumeChange}
+                      className="w-32"
+                      aria-label="Volume Control"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Device Selector */}
+              {results && (
                 <div className="space-y-4">
                   <h3 className="text-2xl font-semibold text-center">
-                    Loudness Penalties
+                    Simulate Devices
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {Object.entries(results.penalties).map(([platform, penalty]) => (
-                      <button
-                        key={platform}
-                        className={`h-auto py-4 flex flex-col items-center justify-center gap-2 transition-transform duration-200 ease-in-out hover:scale-105 ${
-                          currentPlatform === platform
-                            ? "bg-primary text-primary-foreground"
-                            : "border border-gray-300 text-gray-700"
-                        } rounded-md`}
-                        onClick={() => togglePlayPause(platform, currentDevice)}
-                        aria-pressed={currentPlatform === platform}
-                        disabled={isLoading} // Disable button while loading
-                      >
-                        <span className="text-lg font-semibold">{platform}</span>
-                        <span
-                          className={`text-sm ${
-                            penalty < 0 ? "text-red-500" : "text-green-500"
-                          }`}
-                        >
-                          {penalty > 0 ? "+" : ""}
-                          {penalty.toFixed(1)} dB
-                        </span>
-                        {isPlaying && currentPlatform === platform ? (
-                          <Pause
-                            className="h-6 w-6 mt-2"
-                            aria-label="Pause"
-                          />
-                        ) : (
-                          <Play
-                            className="h-6 w-6 mt-2"
-                            aria-label="Play"
-                          />
-                        )}
-                      </button>
+                  <DeviceSelector
+                    devices={Object.keys(gainValues)} 
+                    currentDevice={currentDevice}
+                    onSelectDevice={(device) =>
+                      handleDeviceSelect(device as DeviceType | null)
+                    }
+                  />
+                </div>
+              )}
+
+              {/* Manual Equalizer Controls */}
+              {results && (
+                <div className="space-y-4">
+                  <h3 className="text-2xl font-semibold text-center">
+                    Manual Equalizer
+                  </h3>
+                  <div className="flex justify-between items-center space-x-2">
+                    {frequencyBands.map((band) => (
+                      <div key={band.name} className="flex flex-col items-center">
+                        <span className="mb-2">{band.name}</span>
+                        <input
+                          type="range"
+                          min="-12"
+                          max="12"
+                          step="0.1"
+                          value={manualEQ[band.name]}
+                          onChange={(e) => handleEQChange(band.name, parseFloat(e.target.value))}
+                          className="w-20"
+                          aria-label={`${band.name} Frequency`}
+                        />
+                        <span className="text-sm">{manualEQ[band.name]} dB</span>
+                      </div>
                     ))}
                   </div>
                 </div>
+              )}
 
-                {/* Playback Controls and Progress */}
-                {file && (
-                  <div className="space-y-4">
-                    {/* Playback Controls */}
-                    <div className="flex items-center justify-center gap-4">
-                      <PlaybackControls
-                        isPlaying={isPlaying}
-                        onPlayPause={() => {
-                          if (isPlaying && currentPlatform) {
-                            pauseAudio();
-                          } else if (!isPlaying && currentPlatform) {
-                            playAudio(currentPlatform, currentDevice);
-                          }
-                        }}
-                        disabled={isLoading} // Disable controls while loading
-                      />
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="flex items-center justify-center space-x-2">
-                      <span>{formatTime(currentTime)}</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max={duration}
-                        value={currentTime}
-                        onChange={handleSeek}
-                        className="w-full"
-                        aria-label="Seek"
-                        step="0.01"
-                      />
-                      <span>{formatTime(duration)}</span>
-                    </div>
-
-                    {/* Volume Control */}
-                    <div className="flex items-center justify-center space-x-2">
-                      <span>Volume</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.01"
-                        value={volume}
-                        onChange={handleVolumeChange}
-                        className="w-32"
-                        aria-label="Volume Control"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Device Selector */}
-                {results && (
-                  <div className="space-y-4">
-                    <h3 className="text-2xl font-semibold text-center">
-                      Simulate Devices
-                    </h3>
-                    <DeviceSelector
-                      devices={Object.keys(gainValues)}
-                      currentDevice={currentDevice}
-                      onSelectDevice={(device) =>
-                        handleDeviceSelect(device as DeviceType)
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Loading Indicator */}
-            {isLoading && (
-              <div className="flex items-center justify-center">
-                <span>Loading audio...</span>
-              </div>
-            )}
-          </div>
+              {/* Loading Indicator */}
+              {isLoading && (
+                <div className="flex items-center justify-center">
+                  <span>Loading audio...</span>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
