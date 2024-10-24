@@ -697,7 +697,7 @@ export default function Component() {
                   <h3 className="text-2xl font-semibold text-center">
                     Manual Equalizer
                   </h3>
-                  <div className="flex justify-between items-center space-x-2">
+                  <div className="equalizer-container overflow-x-auto">
                     {frequencyBands.map((band) => (
                       <div key={band.name} className="flex flex-col items-center">
                         <span className="mb-2">{band.name}</span>
@@ -708,7 +708,7 @@ export default function Component() {
                           step="0.1"
                           value={manualEQ[band.name]}
                           onChange={(e) => handleEQChange(band.name, parseFloat(e.target.value))}
-                          className="w-20"
+                          className="equalizer-slider w-20"
                           aria-label={`${band.name} Frequency`}
                         />
                         <span className="text-sm">{manualEQ[band.name]} dB</span>
