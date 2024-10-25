@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
 
     return config;
   },
+  // Disable static generation for pages using WebAssembly
+  unstable_runtimeJS: true,
 };
 
 export default nextConfig;

@@ -4,9 +4,11 @@ import * as ebur128Wasm from 'ebur128-wasm';
 
 export class LUFSCalculator {
     private sampleRate: number;
+    private ebur128Wasm: any;
   
-    constructor(sampleRate: number) {
+    constructor(sampleRate: number, ebur128Wasm: any) {
       this.sampleRate = sampleRate;
+      this.ebur128Wasm = ebur128Wasm;
     }
   
     async calculateIntegratedLUFS(audioBuffer: AudioBuffer): Promise<number> {

@@ -12,10 +12,12 @@ import { Volume2, Play, Pause } from "lucide-react";
 import FileUploader from "./FileUploader";
 import PlaybackControls from "./PlaybackControls";
 import DeviceSelector from "./DeviceSelector";
+import { analyzeAudio } from "./analyze";
 
-// Dynamically import the analyzeAudio function
-// Remove the dynamic import
-import { analyzeAudio } from './analyze';
+// Dynamically import the component that uses WebAssembly
+const DynamicAnalyzer = dynamic(() => import('./DynamicComponent'), {
+  ssr: false,
+});
 
 // Define a type for the device keys
 type DeviceType = keyof typeof gainValues;
@@ -564,16 +566,17 @@ const handleFileSelect = async (selectedFile: File) => {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* File Uploader */}
             <FileUploader onFileSelect={handleFileSelect} />
           </div>
 
-          {/* Display Selected File */}
           {file && (
             <div className="text-center text-muted-foreground">
               Selected file: {file.name}
             </div>
           )}
+
+          {/* Use the DynamicAnalyzer component */}
+          <DynamicAnalyzer />
 
           {/* Display Analysis Results */}
           {results && (
