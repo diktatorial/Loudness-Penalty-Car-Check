@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import dynamic from 'next/dynamic';
 import {
   Card,
   CardContent,
@@ -11,6 +12,9 @@ import { Volume2, Play, Pause } from "lucide-react";
 import FileUploader from "./FileUploader";
 import PlaybackControls from "./PlaybackControls";
 import DeviceSelector from "./DeviceSelector";
+
+// Dynamically import the analyzeAudio function
+// Remove the dynamic import
 import { analyzeAudio } from './analyze';
 
 // Define a type for the device keys
@@ -196,44 +200,45 @@ export default function Component() {
     }, {} as EQSettings)
   );
 
-  // Handle File Selection
-  const handleFileSelect = async (selectedFile: File) => {
-    setFile(selectedFile);
-    setAudioUrl(URL.createObjectURL(selectedFile));
-    setResults(null);
-    setCurrentPlatform(null);
-    setCurrentDevice(null);
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    pauseTimeRef.current = 0;
-    audioBufferRef.current = null; // Reset audio buffer
+ // Handle File Selection
+const handleFileSelect = async (selectedFile: File) => {
+  setFile(selectedFile);
+  setAudioUrl(URL.createObjectURL(selectedFile));
+  setResults(null);
+  setCurrentPlatform(null);
+  setCurrentDevice(null);
+  setIsPlaying(false);
+  setCurrentTime(0);
+  setDuration(0);
+  pauseTimeRef.current = 0;
+  audioBufferRef.current = null;
 
-    setIsLoading(true);
+  setIsLoading(true);
 
-    try {
-      // Run audio analysis and get both LUFS and audio buffer (already decoded)
-      const { lufs, penalties, audioBuffer } = await analyzeAudio(selectedFile);
-      setResults({ lufs, penalties });
-
-      // Initialize AudioContext if not already
-      if (!audioContextRef.current) {
-        const audioContext = new AudioContext();
-        audioContextRef.current = audioContext;
-      }
-
-      // Use the decoded audioBuffer for playback
-      audioBufferRef.current = audioBuffer;
-      setDuration(audioBuffer.duration); // Set the duration based on the decoded audio
-
-      console.log("Audio analysis and setup completed");
-    } catch (error) {
-      console.error("Error during file analysis or audio setup:", error);
-      alert("An error occurred during analysis or audio setup. Please try a different file.");
-    } finally {
-      setIsLoading(false);
+  try {
+    // Create AudioContext here to ensure it's in a browser context
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
-  };
+
+    const arrayBuffer = await selectedFile.arrayBuffer();
+    const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+
+    // Now, analyze the audioBuffer directly
+    const { lufs, penalties } = await analyzeAudio(audioBuffer);
+    setResults({ lufs, penalties });
+
+    audioBufferRef.current = audioBuffer;
+    setDuration(audioBuffer.duration);
+
+    console.log("Audio analysis and setup completed");
+  } catch (error) {
+    console.error("Error during file analysis or audio setup:", error);
+    alert("An error occurred during analysis or audio setup. Please try a different file.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Apply Equalizer Settings
   const applyEqualizer = (settings: EQSettings) => {
@@ -731,7 +736,6 @@ export default function Component() {
     </div>
   );
 }
-
 // Utility function to format time in mm:ss
 const formatTime = (time: number): string => {
   const minutes = Math.floor(time / 60);
