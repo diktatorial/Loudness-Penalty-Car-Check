@@ -21,13 +21,14 @@ const nextConfig: NextConfig = {
     };
 
     // This line is crucial for Vercel deployment
-    config.optimization.moduleIds = 'named'
+    config.optimization.moduleIds = 'named';
 
-    console.log('Webpack config:', JSON.stringify(config, null, 2));
+    // Remove or comment out the problematic console.log
+    // console.log('Webpack config:', JSON.stringify(config, null, 2));
 
     return config;
   },
-  // Add this to ensure WebAssembly files are copied to the output directory
+  // Ensure WebAssembly files are included in the output
   output: 'standalone',
 };
 
