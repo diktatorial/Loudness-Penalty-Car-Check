@@ -2,7 +2,8 @@
 import { LUFSCalculator } from './LUFSCalculator';
 
 export async function analyzeAudio(
-  audioBuffer: AudioBuffer
+  audioBuffer: AudioBuffer,
+  wasmModule: any
 ): Promise<{
   lufs: number;
   penalties: Record<string, number>;
@@ -11,12 +12,9 @@ export async function analyzeAudio(
     throw new Error('analyzeAudio can only be used in the browser.');
   }
 
-  // Dynamically import the ebur128-wasm module
-  const ebur128Wasm = await import('ebur128-wasm');
-
   try {
     const sampleRate = audioBuffer.sampleRate;
-    const lufsCalculator = new LUFSCalculator(sampleRate, ebur128Wasm);
+    const lufsCalculator = new LUFSCalculator(sampleRate, wasmModule);
     const lufs = await lufsCalculator.calculateIntegratedLUFS(audioBuffer);
     const penalties = lufsCalculator.calculateLUFSPenalty(lufs);
 

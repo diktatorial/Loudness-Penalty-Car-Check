@@ -1,14 +1,12 @@
 // LUFSCalculator.ts
 
-import * as ebur128Wasm from 'ebur128-wasm';
-
 export class LUFSCalculator {
     private sampleRate: number;
-    private ebur128Wasm: any;
+    private wasmModule: any;
   
-    constructor(sampleRate: number, ebur128Wasm: any) {
+    constructor(sampleRate: number, wasmModule: any) {
       this.sampleRate = sampleRate;
-      this.ebur128Wasm = ebur128Wasm;
+      this.wasmModule = wasmModule;
     }
   
     async calculateIntegratedLUFS(audioBuffer: AudioBuffer): Promise<number> {
@@ -30,10 +28,10 @@ export class LUFSCalculator {
   
       if (numChannels === 1) {
         // Mono audio
-        lufs = ebur128Wasm.ebur128_integrated_mono(this.sampleRate, channelData[0]);
+        lufs = this.wasmModule.ebur128_integrated_mono(this.sampleRate, channelData[0]);
       } else if (numChannels === 2) {
         // Stereo audio
-        lufs = ebur128Wasm.ebur128_integrated_stereo(
+        lufs = this.wasmModule.ebur128_integrated_stereo(
           this.sampleRate,
           channelData[0],
           channelData[1]
@@ -51,7 +49,7 @@ export class LUFSCalculator {
           mixedData[i] = sum / numChannels;
         }
   
-        lufs = ebur128Wasm.ebur128_integrated_mono(this.sampleRate, mixedData);
+        lufs = this.wasmModule.ebur128_integrated_mono(this.sampleRate, mixedData);
       }
   
       return lufs;

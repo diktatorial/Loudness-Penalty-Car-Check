@@ -197,6 +197,22 @@ export default function DynamicPage() {
     }, {} as EQSettings)
   );
 
+  // Add a new state for the WebAssembly module
+  const [wasmModule, setWasmModule] = useState<WebAssembly.Module | null>(null);
+
+  // Load the WebAssembly module when the component mounts
+  useEffect(() => {
+    const loadWasm = async () => {
+      try {
+        const wasm = await import('ebur128-wasm');
+        setWasmModule(wasm);
+      } catch (error) {
+        console.error("Failed to load WebAssembly module:", error);
+      }
+    };
+    loadWasm();
+  }, []);
+
   // Handle File Selection
   const handleFileSelect = async (selectedFile: File) => {
     setFile(selectedFile);
@@ -222,7 +238,10 @@ export default function DynamicPage() {
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
 
       // Now, analyze the audioBuffer directly
-      const { lufs, penalties } = await analyzeAudio(audioBuffer);
+      if (!wasmModule) {
+        throw new Error("WebAssembly module not loaded");
+      }
+      const { lufs, penalties } = await analyzeAudio(audioBuffer, wasmModule);
       setResults({ lufs, penalties });
 
       audioBufferRef.current = audioBuffer;
