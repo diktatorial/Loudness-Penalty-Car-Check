@@ -7,11 +7,6 @@ import { Play, Pause } from "lucide-react";
 interface PlaybackControlsProps {
   isPlaying: boolean;
   onPlayPause: () => void;
-}
-
-interface PlaybackControlsProps {
-  isPlaying: boolean;
-  onPlayPause: () => void;
   disabled?: boolean;
 }
 
