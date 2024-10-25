@@ -20,8 +20,15 @@ const nextConfig: NextConfig = {
       webassemblyModuleFilename: 'static/wasm/[modulehash].wasm',
     };
 
+    // This line is crucial for Vercel deployment
+    config.optimization.moduleIds = 'named'
+
+    console.log('Webpack config:', JSON.stringify(config, null, 2));
+
     return config;
   },
+  // Add this to ensure WebAssembly files are copied to the output directory
+  output: 'standalone',
 };
 
 export default nextConfig;
