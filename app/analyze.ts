@@ -20,6 +20,7 @@ export async function analyzeAudio(
 
     return { lufs, penalties };
   } catch (error) {
+    console.error('Error analyzing audio:', error);
     throw error;
   }
 }
