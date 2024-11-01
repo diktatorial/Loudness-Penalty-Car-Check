@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 interface DeviceSelectorProps {
   devices: string[];
   currentDevice: string | null;
-  onSelectDevice: (device: string) => void;
+  onSelectDevice: (device: string | null) => void;
 }
 
 const DeviceSelector: React.FC<DeviceSelectorProps> = ({ devices, currentDevice, onSelectDevice }) => {
@@ -17,9 +17,11 @@ const DeviceSelector: React.FC<DeviceSelectorProps> = ({ devices, currentDevice,
           key={device}
           variant={currentDevice === device ? "default" : "outline"}
           className="h-auto py-4 flex flex-col items-center justify-center gap-2 transition-transform duration-200 ease-in-out hover:scale-105"
-          onClick={() => onSelectDevice(device)}
+          onClick={() => onSelectDevice(device === currentDevice ? null : device)}
         >
-          <span className="text-lg font-semibold capitalize">{device}</span>
+          <span className="text-lg font-semibold capitalize">
+            {device === "none" ? "Default" : device}
+          </span>
         </Button>
       ))}
     </div>

@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Volume2, Play, Pause } from "lucide-react";
 import FileUploader from "./FileUploader";
 import PlaybackControls from "./PlaybackControls";
@@ -160,6 +161,9 @@ type AudioBufferSourceNodeWithStartTime = AudioBufferSourceNode & { startTime?: 
 // Define types for the equalizer
 type EQSettings = Record<string, number>;
 
+// Add DEFAULT_PLATFORM constant
+const DEFAULT_PLATFORM = "original";
+
 export default function DynamicPage() {
   // State Variables
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
@@ -242,7 +246,13 @@ export default function DynamicPage() {
         throw new Error("WebAssembly module not loaded");
       }
       const { lufs, penalties } = await analyzeAudio(audioBuffer, wasmModule);
-      setResults({ lufs, penalties });
+      setResults({ 
+        lufs, 
+        penalties: {
+          [DEFAULT_PLATFORM]: 0, // Add original version with no penalty
+          ...penalties 
+        }
+      });
 
       audioBufferRef.current = audioBuffer;
       setAudioBuffer(audioBuffer);
@@ -470,28 +480,23 @@ export default function DynamicPage() {
 
   // **Updated Function: Synchronize Manual EQ with Selected Device**
   const handleDeviceSelect = (device: DeviceType | null) => {
-    setCurrentDevice(device);
+    // Allow deselecting current device by clicking again
+    setCurrentDevice(currentDevice === device ? null : device);
+    
     if (device) {
-      // Update manual EQ to match the selected device's EQ settings
       setManualEQ(gainValues[device]);
-
       if (isPlaying && currentPlatform) {
-        // Adjust equalizer settings based on device preset
-        const deviceSettings = gainValues[device];
-        applyEqualizer(deviceSettings);
+        applyEqualizer(gainValues[device]);
       }
     } else {
-      // If 'None' is selected, reset manual EQ to default (all zeros)
-      setManualEQ(
-        frequencyBands.reduce((acc, band) => {
-          acc[band.name] = 0;
-          return acc;
-        }, {} as EQSettings)
-      );
-
+      // Reset to default EQ (all zeros)
+      const defaultEQ = frequencyBands.reduce((acc, band) => {
+        acc[band.name] = 0;
+        return acc;
+      }, {} as EQSettings);
+      setManualEQ(defaultEQ);
       if (isPlaying && currentPlatform) {
-        // Apply manual EQ settings (all zeros)
-        applyEqualizer(manualEQ);
+        applyEqualizer(defaultEQ);
       }
     }
   };
@@ -622,39 +627,28 @@ export default function DynamicPage() {
                   Loudness Penalties
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {Object.entries(results.penalties).map(([platform, penalty]) => (
-                    <button
+                  {Object.entries(results?.penalties || {}).map(([platform, penalty]) => (
+                    <Button
                       key={platform}
-                      className={`h-auto py-4 flex flex-col items-center justify-center gap-2 transition-transform duration-200 ease-in-out hover:scale-105 ${
-                        currentPlatform === platform
-                          ? "bg-primary text-primary-foreground"
-                          : "border border-gray-300 text-gray-700"
-                      } rounded-md`}
+                      variant={currentPlatform === platform ? "default" : "outline"}
+                      className="h-auto py-4 flex flex-col items-center justify-center gap-2 
+                        transition-transform duration-200 ease-in-out hover:scale-105"
                       onClick={() => togglePlayPause(platform, currentDevice)}
-                      aria-pressed={currentPlatform === platform}
-                      disabled={isLoading} // Disable button while loading
+                      disabled={isLoading}
                     >
-                      <span className="text-lg font-semibold">{platform}</span>
-                      <span
-                        className={`text-sm ${
-                          penalty < 0 ? "text-red-500" : "text-green-500"
-                        }`}
-                      >
+                      <span className="text-lg font-semibold">
+                        {platform === DEFAULT_PLATFORM ? "Original" : platform}
+                      </span>
+                      <span className={`text-sm ${penalty < 0 ? "text-red-500" : "text-green-500"}`}>
                         {penalty > 0 ? "+" : ""}
                         {penalty.toFixed(1)} dB
                       </span>
                       {isPlaying && currentPlatform === platform ? (
-                        <Pause
-                          className="h-6 w-6 mt-2"
-                          aria-label="Pause"
-                        />
+                        <Pause className="h-6 w-6 mt-2" aria-label="Pause" />
                       ) : (
-                        <Play
-                          className="h-6 w-6 mt-2"
-                          aria-label="Play"
-                        />
+                        <Play className="h-6 w-6 mt-2" aria-label="Play" />
                       )}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
