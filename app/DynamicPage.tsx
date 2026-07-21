@@ -155,8 +155,13 @@ const gainValues = {
   }, // Tablet speakers
 } as const;
 
-// Extend AudioBufferSourceNode to include startTime
-type AudioBufferSourceNodeWithStartTime = AudioBufferSourceNode & { startTime?: number };
+// Extend AudioBufferSourceNode to include startTime and a started flag.
+// `hasStarted` lets us guard stop()/disconnect() so we never call stop() on a
+// node whose start() never succeeded (which throws a DOMException).
+type AudioBufferSourceNodeWithStartTime = AudioBufferSourceNode & {
+  startTime?: number;
+  hasStarted?: boolean;
+};
 
 // Define types for the equalizer
 type EQSettings = Record<string, number>;
@@ -363,6 +368,23 @@ export default function DynamicPage() {
     }
   };
 
+  // Safely stop and disconnect a source node. Calling stop() on a node whose
+  // start() never succeeded throws a DOMException ("cannot call stop without
+  // calling start first"), so we only stop nodes we know were started.
+  const stopSourceNode = (
+    node: AudioBufferSourceNodeWithStartTime | null
+  ) => {
+    if (!node) return;
+    try {
+      if (node.hasStarted) {
+        node.stop();
+      }
+      node.disconnect();
+    } catch (error) {
+      console.error("Error stopping audio source node:", error);
+    }
+  };
+
   // Play Audio with Selected Platform and Device
   const playAudio = async (platform: string, device: DeviceType | null) => {
     // Ensure audio is loaded
@@ -394,10 +416,8 @@ export default function DynamicPage() {
 
     // Stop current audio if already playing
     if (isPlaying) {
-      if (sourceNodeRef.current) {
-        sourceNodeRef.current.stop();
-        sourceNodeRef.current.disconnect();
-      }
+      stopSourceNode(sourceNodeRef.current);
+      sourceNodeRef.current = null;
       setIsPlaying(false);
     }
 
@@ -430,9 +450,13 @@ export default function DynamicPage() {
     // Connect source node to the gain node and start playback
     sourceNode.connect(platformGainNodeRef.current!);
 
-    // Start playback from the current time
-    sourceNode.start(0, currentTime); // Start from the paused or beginning position
-    sourceNode.startTime = audioContext.currentTime - currentTime; // Track time since start
+    // Start playback from the current time.
+    // The offset passed to start() must be >= 0, but `currentTime` can dip
+    // slightly negative due to clock skew / React state lag, so clamp it.
+    const offset = Math.max(0, currentTime);
+    sourceNode.start(0, offset); // Start from the paused or beginning position
+    sourceNode.hasStarted = true;
+    sourceNode.startTime = audioContext.currentTime - offset; // Track time since start
 
     // Update state for playback
     setIsPlaying(true);
@@ -445,11 +469,12 @@ export default function DynamicPage() {
     const sourceNode = sourceNodeRef.current;
 
     if (audioContext && sourceNode) {
-      sourceNode.stop();
-      sourceNode.disconnect();
+      stopSourceNode(sourceNode);
       sourceNodeRef.current = null;
 
-      const elapsed = audioContext.currentTime - (sourceNode.startTime || 0);
+      // Clamp at the source: clock skew can make this dip slightly negative,
+      // which would later be fed back into start() as an invalid offset.
+      const elapsed = Math.max(0, audioContext.currentTime - (sourceNode.startTime || 0));
       pauseTimeRef.current = elapsed;
       setCurrentTime(elapsed);
     }
@@ -465,8 +490,7 @@ export default function DynamicPage() {
     const sourceNode = sourceNodeRef.current;
 
     if (sourceNode) {
-      sourceNode.stop();
-      sourceNode.disconnect();
+      stopSourceNode(sourceNode);
       sourceNodeRef.current = null;
     }
 
@@ -554,7 +578,10 @@ export default function DynamicPage() {
           isPlaying &&
           sourceNodeRef.current?.startTime !== undefined
         ) {
-          const elapsed = audioContextRef.current.currentTime - (sourceNodeRef.current.startTime || 0);
+          const elapsed = Math.max(
+            0,
+            audioContextRef.current.currentTime - (sourceNodeRef.current.startTime || 0)
+          );
           setCurrentTime(elapsed);
           if (elapsed >= duration) {
             stopAudio();
